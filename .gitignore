@@ -1,0 +1,25 @@
+# Environment
+.env
+*.pyc
+__pycache__/
+.DS_Store
+
+# Virtual environment
+venv/
+env/
+*.egg-info/
+
+# Output files
+output/
+books/*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.log
+*.tmp
+test_*.mp3
