@@ -19,8 +19,8 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 TTS_API_KEY = os.getenv('TTS_API_KEY') or OPENAI_API_KEY  # Fallback to main key
 
 # Model Configuration
-TRANSLATION_MODEL = os.getenv('TRANSLATION_MODEL', 'gpt-4o')
-SUMMARY_MODEL = os.getenv('SUMMARY_MODEL', 'gpt-4o')
+TRANSLATION_MODEL = os.getenv('TRANSLATION_MODEL', 'gpt-5')
+SUMMARY_MODEL = os.getenv('SUMMARY_MODEL', 'gpt-5')
 TTS_MODEL = os.getenv('TTS_MODEL', 'tts-1-hd')
 TTS_VOICE = os.getenv('TTS_VOICE', 'nova')
 TTS_QPM = int(os.getenv('TTS_QPM', 5))

@@ -1,8 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" alt="Python">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/GPT--4o-Powered-orange?style=for-the-badge&logo=openai" alt="GPT-4o">
-  <img src="https://img.shields.io/badge/TTS-OpenAI-purple?style=for-the-badge" alt="TTS">
 </p>
 
 <h1 align="center">TransPub</h1>
@@ -30,7 +28,7 @@
 |---------|-------------|
 | 🔍 **Smart Chapter Detection** | Automatically detects chapter boundaries in PDFs |
 | 🧹 **PDF Preprocessing** | Fixes common PDF extraction issues, adds Markdown formatting |
-| 🌐 **AI Translation** | High-quality translation powered by GPT-4o |
+| 🌐 **AI Translation** | High-quality translation powered by GPT-5 |
 | 📝 **Chapter Summaries** | Auto-generated summaries for each chapter |
 | 🎧 **Text-to-Speech** | Natural voice audio using OpenAI TTS |
 | 🌍 **One-Click Publishing** | Generates static website with audio player, ready for GitHub Pages |
@@ -43,7 +41,7 @@
 ### 1. Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/TransPub.git
+git clone https://github.com/jinghan23/TransPub.git
 cd TransPub
 
 conda create -n transpub python=3.10 -y
@@ -158,8 +156,8 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # OPENAI_API_VERSION=2024-02-01
 
 # Models
-TRANSLATION_MODEL=gpt-4o
-SUMMARY_MODEL=gpt-4o
+TRANSLATION_MODEL=gpt-5
+SUMMARY_MODEL=gpt-5
 TTS_MODEL=tts-1-hd
 TTS_VOICE=nova
 
