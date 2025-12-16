@@ -1,21 +1,21 @@
 #!/bin/bash
 #
-# Book Pipeline - Process a PDF book from start to finish
+# Book Pipeline - Process a book (PDF/EPUB) from start to finish
 #
 # Usage:
-#   ./process_book.sh <pdf_path> <book_slug> <book_title> [options]
+#   ./process_book.sh <book_path> <book_slug> <book_title> [options]
 #
 # Example:
 #   ./process_book.sh "books/MyBook.pdf" "my-book" "My Book Title"
-#   ./process_book.sh "books/MyBook.pdf" "my-book" "My Book Title" --skip-audio
+#   ./process_book.sh "books/MyBook.epub" "my-book" "My Book Title" --skip-audio
 #
 # Options:
 #   --skip-audio       Skip audio generation
-#   --skip-pages N     Skip first N pages (default: 10)
+#   --skip-pages N     Skip first N pages (PDF only, default: 10)
 #   --max-chapters N   Process only first N chapters
 #
 # Pipeline Steps:
-#   1. Extract chapters from PDF
+#   1. Extract chapters from PDF/EPUB
 #   2. Preprocess chapters (clean + format)
 #   3. Translate to Chinese
 #   4. Generate summaries
@@ -49,22 +49,23 @@ print_warning() {
 
 # Show usage
 usage() {
-    echo "Usage: $0 <pdf_path> <book_slug> <book_title> [options]"
+    echo "Usage: $0 <book_path> <book_slug> <book_title> [options]"
     echo ""
     echo "Arguments:"
-    echo "  pdf_path     Path to the PDF file"
+    echo "  book_path    Path to the book file (PDF or EPUB)"
     echo "  book_slug    Short identifier for the book (e.g., 'next-level')"
     echo "  book_title   Full title of the book"
     echo ""
     echo "Options:"
     echo "  --skip-audio       Skip audio generation"
-    echo "  --skip-pages N     Skip first N pages (default: 10)"
+    echo "  --skip-pages N     Skip first N pages (PDF only, default: 10)"
     echo "  --max-chapters N   Process only first N chapters"
     echo "  --step STEP        Run only specific step:"
     echo "                     extract, preprocess, translate, summarize, audio, website"
     echo ""
-    echo "Example:"
+    echo "Examples:"
     echo "  $0 'books/MyBook.pdf' 'my-book' 'My Book Title'"
+    echo "  $0 'books/MyBook.epub' 'my-book' 'My Book Title' --skip-audio"
     exit 1
 }
 
@@ -73,7 +74,7 @@ if [ $# -lt 3 ]; then
     usage
 fi
 
-PDF_PATH="$1"
+BOOK_PATH="$1"
 BOOK_SLUG="$2"
 BOOK_TITLE="$3"
 shift 3
@@ -110,9 +111,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate PDF exists
-if [ ! -f "$PDF_PATH" ]; then
-    print_error "PDF file not found: $PDF_PATH"
+# Validate book file exists
+if [ ! -f "$BOOK_PATH" ]; then
+    print_error "Book file not found: $BOOK_PATH"
+    exit 1
+fi
+
+# Check file format
+BOOK_EXT="${BOOK_PATH##*.}"
+BOOK_EXT_LOWER=$(echo "$BOOK_EXT" | tr '[:upper:]' '[:lower:]')
+if [[ "$BOOK_EXT_LOWER" != "pdf" && "$BOOK_EXT_LOWER" != "epub" ]]; then
+    print_error "Unsupported file format: .$BOOK_EXT (supported: .pdf, .epub)"
     exit 1
 fi
 
@@ -140,11 +149,14 @@ fi
 # Print configuration
 echo -e "\n${GREEN}Book Pipeline Configuration${NC}"
 echo "─────────────────────────────────────────────────────"
-echo "PDF:          $PDF_PATH"
+echo "Book:         $BOOK_PATH"
+echo "Format:       .$BOOK_EXT_LOWER"
 echo "Slug:         $BOOK_SLUG"
 echo "Title:        $BOOK_TITLE"
 echo "Output:       $OUTPUT_DIR"
-echo "Skip pages:   $SKIP_PAGES"
+if [[ "$BOOK_EXT_LOWER" == "pdf" ]]; then
+    echo "Skip pages:   $SKIP_PAGES"
+fi
 echo "Max chapters: ${MAX_CHAPTERS:-all}"
 echo "Skip audio:   $SKIP_AUDIO"
 echo "Single step:  ${SINGLE_STEP:-none}"
@@ -153,7 +165,8 @@ echo "────────────────────────�
 # Function to run a step
 run_step() {
     local step_name="$1"
-    local step_cmd="$2"
+    shift
+    # Rest of arguments are the command and its arguments
 
     # Check if we should run this step
     if [ -n "$SINGLE_STEP" ] && [ "$SINGLE_STEP" != "$step_name" ]; then
@@ -162,33 +175,46 @@ run_step() {
     fi
 
     print_step "Step: $step_name"
-    eval "$step_cmd"
+    # Execute command directly without eval to avoid quote issues
+    "$@"
 }
 
 # Change to script directory
 cd "$SCRIPT_DIR"
 
-# Step 1: Extract chapters from PDF
-run_step "extract" "python3 '$SRC_DIR/extract_chapters.py' '$PDF_PATH' '$CHAPTERS_DIR' --skip-pages $SKIP_PAGES"
+# Step 1: Extract chapters from book file
+run_step "extract" python3 "$SRC_DIR/extract_chapters.py" "$BOOK_PATH" "$CHAPTERS_DIR" --skip-pages $SKIP_PAGES
 
 # Step 2: Preprocess chapters (clean + format)
-run_step "preprocess" "python3 '$SRC_DIR/preprocess.py' '$CHAPTERS_DIR' '$PROCESSED_DIR' $MAX_ARG"
+if [ -n "$MAX_ARG" ]; then
+    run_step "preprocess" python3 "$SRC_DIR/preprocess.py" "$CHAPTERS_DIR" "$PROCESSED_DIR" $MAX_ARG
+else
+    run_step "preprocess" python3 "$SRC_DIR/preprocess.py" "$CHAPTERS_DIR" "$PROCESSED_DIR"
+fi
 
 # Step 3: Translate to Chinese
-run_step "translate" "python3 '$SRC_DIR/translate.py' '$PROCESSED_DIR' '$TRANSLATIONS_DIR' $MAX_ARG"
+if [ -n "$MAX_ARG" ]; then
+    run_step "translate" python3 "$SRC_DIR/translate.py" "$PROCESSED_DIR" "$TRANSLATIONS_DIR" $MAX_ARG
+else
+    run_step "translate" python3 "$SRC_DIR/translate.py" "$PROCESSED_DIR" "$TRANSLATIONS_DIR"
+fi
 
 # Step 4: Generate summaries
-run_step "summarize" "python3 '$SRC_DIR/summarize.py' '$TRANSLATIONS_DIR' '$SUMMARIES_DIR' $MAX_ARG"
+if [ -n "$MAX_ARG" ]; then
+    run_step "summarize" python3 "$SRC_DIR/summarize.py" "$TRANSLATIONS_DIR" "$SUMMARIES_DIR" $MAX_ARG
+else
+    run_step "summarize" python3 "$SRC_DIR/summarize.py" "$TRANSLATIONS_DIR" "$SUMMARIES_DIR"
+fi
 
 # Step 5: Generate audio (optional)
 if [ "$SKIP_AUDIO" = false ]; then
-    run_step "audio" "python3 '$SRC_DIR/generate_audio.py' '$TRANSLATIONS_DIR' '$AUDIO_DIR'"
+    run_step "audio" python3 "$SRC_DIR/generate_audio.py" "$TRANSLATIONS_DIR" "$AUDIO_DIR"
 else
     echo "Skipping audio generation (--skip-audio)"
 fi
 
 # Step 6: Generate website
-run_step "website" "python3 '$SRC_DIR/generate_website.py' '$BOOK_SLUG' '$BOOK_TITLE'"
+run_step "website" python3 "$SRC_DIR/generate_website.py" "$BOOK_SLUG" "$BOOK_TITLE"
 
 # Done!
 print_step "Pipeline Complete!"

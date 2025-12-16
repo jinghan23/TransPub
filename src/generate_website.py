@@ -120,7 +120,7 @@ def generate_chapter_html(chapter_num: int, trans_file: Path, summary_dir: Path,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>第 {chapter_num} 章: {title} - {book_title}</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../../../css/style.css">
     <style>
         .chapter-summary-box {{
             background: #f0f8ff;
@@ -184,7 +184,7 @@ def generate_index_html(chapters: list, output_dir: Path, book_title: str, book_
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{book_title} - 中文翻译</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="../../css/style.css">
 </head>
 <body>
     <div class="container">
@@ -219,6 +219,108 @@ def copy_audio_files(audio_src: Path, audio_dest: Path):
             print(f"  Copied {audio_file.name}")
 
 
+def generate_books_index(docs_base: str):
+    """Generate docs/index.html with list of all books"""
+    docs_dir = Path(docs_base).parent  # docs/books -> docs
+    books_dir = Path(docs_base)  # docs/books
+
+    books = []
+
+    # Scan all books in docs/books/
+    if books_dir.exists():
+        for book_dir in sorted(books_dir.iterdir()):
+            if not book_dir.is_dir():
+                continue
+
+            # Read chapters.json to get book info
+            chapters_json = book_dir / 'data' / 'chapters.json'
+            if chapters_json.exists():
+                try:
+                    chapters_data = json.loads(chapters_json.read_text(encoding='utf-8'))
+
+                    # Extract book title from index.html
+                    index_html = book_dir / 'index.html'
+                    book_title = book_dir.name  # fallback to slug
+                    if index_html.exists():
+                        content = index_html.read_text(encoding='utf-8')
+                        # Extract title from <h1> tag
+                        import re
+                        match = re.search(r'<h1>(.*?)</h1>', content)
+                        if match:
+                            book_title = match.group(1)
+
+                    books.append({
+                        'slug': book_dir.name,
+                        'title': book_title,
+                        'chapters_count': len(chapters_data),
+                        'total_words': sum(ch.get('wordCount', 0) for ch in chapters_data),
+                        'has_audio': any(ch.get('hasAudio', False) for ch in chapters_data)
+                    })
+                except Exception as e:
+                    print(f"Warning: Failed to read {book_dir.name}: {e}")
+
+    # Generate HTML
+    books_html = ''
+    for book in books:
+        audio_badge = '🔊 有声书' if book['has_audio'] else ''
+        books_html += f'''
+        <div class="book-card" onclick="location.href='books/{book['slug']}/index.html'">
+            <div class="book-title">{book['title']}</div>
+            <div class="book-meta">
+                <span>📚 {book['chapters_count']} 章节</span>
+                <span>📝 {book['total_words']:,} 字</span>
+                {f'<span class="audio-badge">{audio_badge}</span>' if audio_badge else ''}
+            </div>
+        </div>'''
+
+    if not books_html:
+        books_html = '<p style="text-align: center; color: #999;">暂无书籍</p>'
+
+    html = f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书籍列表 - TransPub</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }}
+        .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
+        header {{ text-align: center; margin-bottom: 40px; padding: 40px 0; }}
+        header h1 {{ margin-bottom: 10px; color: #2c3e50; }}
+        .subtitle {{ color: #666; }}
+        .books-grid {{ display: grid; gap: 20px; }}
+        .book-card {{ background: white; padding: 25px; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border-left: 4px solid #3498db; }}
+        .book-card:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }}
+        .book-title {{ font-size: 1.5em; margin-bottom: 15px; color: #2c3e50; font-weight: 500; }}
+        .book-meta {{ color: #666; font-size: 0.9em; display: flex; gap: 20px; flex-wrap: wrap; }}
+        .audio-badge {{ color: #e74c3c; font-weight: 500; }}
+        footer {{ text-align: center; margin-top: 60px; padding: 20px; color: #999; border-top: 1px solid #ddd; }}
+        footer a {{ color: #3498db; text-decoration: none; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 我的书籍收藏</h1>
+            <p class="subtitle">由 TransPub 生成 | 共 {len(books)} 本书籍</p>
+        </header>
+
+        <div class="books-grid">
+            {books_html}
+        </div>
+
+        <footer>
+            <p>Powered by <a href="https://github.com/jinghan23/TransPub" target="_blank">TransPub</a></p>
+        </footer>
+    </div>
+</body>
+</html>'''
+
+    index_file = docs_dir / 'index.html'
+    index_file.write_text(html, encoding='utf-8')
+    print(f"\nGenerated {index_file} with {len(books)} book(s)")
+
+
 def generate_website(book_slug: str, book_title: str, output_base: str, docs_base: str):
     """Generate complete website for a book"""
     output_dir = Path(output_base) / book_slug
@@ -233,12 +335,10 @@ def generate_website(book_slug: str, book_title: str, output_base: str, docs_bas
     docs_chapters = docs_dir / 'chapters'
     docs_data = docs_dir / 'data'
     docs_audio = docs_dir / 'audio'
-    docs_css = docs_dir / 'css'
 
     # Create directories
     docs_chapters.mkdir(parents=True, exist_ok=True)
     docs_data.mkdir(parents=True, exist_ok=True)
-    docs_css.mkdir(parents=True, exist_ok=True)
 
     print(f"\nGenerating website for: {book_title}")
     print(f"Output: {docs_dir}\n")
@@ -263,8 +363,15 @@ def generate_website(book_slug: str, book_title: str, output_base: str, docs_bas
         print("\nCopying audio files...")
         copy_audio_files(audio_dir, docs_audio)
 
-    # Copy/create CSS
-    css_content = '''
+    # Create global CSS (only if it doesn't exist)
+    global_css_dir = Path(docs_base).parent / 'css'
+    global_css_file = global_css_dir / 'style.css'
+
+    if not global_css_file.exists():
+        print("\nCreating global CSS file...")
+        global_css_dir.mkdir(parents=True, exist_ok=True)
+
+        css_content = '''
 /* Book Pipeline - Chapter Styles */
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
 .container { max-width: 900px; margin: 0 auto; padding: 20px; }
@@ -288,11 +395,17 @@ header h1 { margin-bottom: 10px; }
 footer { text-align: center; margin-top: 40px; color: #999; }
 footer a { color: #3498db; }
 '''
-    (docs_css / 'style.css').write_text(css_content, encoding='utf-8')
+        global_css_file.write_text(css_content, encoding='utf-8')
+        print(f"  Created {global_css_file}")
+    else:
+        print(f"\nGlobal CSS already exists: {global_css_file}")
 
     print(f"\n{'='*60}")
     print(f"Website generated successfully!")
     print(f"{'='*60}")
+
+    # Generate books index page (docs/index.html)
+    generate_books_index(docs_base)
 
 
 def main():

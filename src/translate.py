@@ -13,43 +13,122 @@ from config import (
 )
 
 
-def split_into_chunks(text: str) -> list:
-    """Split text into chunks at safe boundaries"""
-    chunks = []
+def _split_sentences(text: str) -> list:
+    """Split a paragraph into sentences using simple punctuation heuristics.
+
+    Handles both English (.!?), and Chinese (。！？) sentence enders and consumes
+    following closing quotes/brackets. Keeps original order without rephrasing.
+    """
+    enders = set('.!?。！？')
+    closers = set('"\'\)\]”’』」»）]')
+    sentences = []
+    n = len(text)
+    start = 0
     i = 0
+    while i < n:
+        c = text[i]
+        if c in enders:
+            j = i + 1
+            while j < n and text[j] in closers:
+                j += 1
+            if j >= n or text[j].isspace():
+                # cut here
+                seg = text[start:j]
+                if seg.strip():
+                    sentences.append(seg.strip())
+                # advance to next non-space
+                k = j
+                while k < n and text[k].isspace():
+                    k += 1
+                start = k
+                i = k
+                continue
+        i += 1
+    # trailing remainder
+    if start < n:
+        rem = text[start:]
+        if rem.strip():
+            sentences.append(rem.strip())
+    return sentences
 
-    while i < len(text):
-        end = min(i + CHUNK_SIZE, len(text))
-        chunk = text[i:end]
 
-        if end < len(text):
-            # Try paragraph boundary
-            last_para = chunk.rfind('\n\n')
-            if last_para > len(chunk) * 0.6:
-                chunk = chunk[:last_para]
-                end = i + last_para
+def split_into_chunks(text: str) -> list:
+    """Split text into chunks with paragraph-first and sentence-aware boundaries.
+
+    - Greedily packs paragraphs (split by blank lines) up to CHUNK_SIZE.
+    - If a single paragraph exceeds CHUNK_SIZE, split it into sentences and pack.
+    - Falls back to space boundaries if a very long sentence exceeds CHUNK_SIZE.
+    """
+    paragraphs = text.split('\n\n')
+    chunks = []
+
+    current = []
+    current_len = 0
+
+    def flush_current():
+        nonlocal current, current_len
+        if current:
+            chunks.append('\n\n'.join(current).strip())
+            current = []
+            current_len = 0
+
+    for para in paragraphs:
+        if not para:
+            # preserve multiple blank blocks sparingly
+            sep = 2 if current else 0
+            if current_len + sep <= CHUNK_SIZE:
+                current.append('')
+                current_len += sep
             else:
-                # Try sentence boundary
-                last_sentence = max(
-                    chunk.rfind('. '),
-                    chunk.rfind('! '),
-                    chunk.rfind('? '),
-                    chunk.rfind('.\n')
-                )
-                if last_sentence > len(chunk) * 0.5:
-                    chunk = chunk[:last_sentence + 1]
-                    end = i + last_sentence + 1
+                flush_current()
+            continue
+
+        # if this paragraph fits, add it
+        sep = 2 if current else 0
+        if current_len + sep + len(para) <= CHUNK_SIZE:
+            current.append(para)
+            current_len += sep + len(para)
+            continue
+
+        # if current has content, flush it first to keep boundaries clean
+        if current:
+            flush_current()
+
+        # paragraph is too large: split by sentences and pack
+        sentences = _split_sentences(para)
+        buf = []
+        buf_len = 0
+        for sent in sentences:
+            sep_in = 1 if buf else 0  # join sentences with a single space
+            if buf_len + sep_in + len(sent) <= CHUNK_SIZE:
+                buf.append(sent)
+                buf_len += sep_in + len(sent)
+            else:
+                if buf:
+                    chunks.append(' '.join(buf).strip())
+                    buf = [sent]
+                    buf_len = len(sent)
                 else:
-                    # Last resort: word boundary
-                    last_space = chunk.rfind(' ')
-                    if last_space > len(chunk) * 0.7:
-                        chunk = chunk[:last_space]
-                        end = i + last_space
+                    # ultra-long sentence: hard cut at last space before limit
+                    s = sent
+                    i = 0
+                    while i < len(s):
+                        end = min(i + CHUNK_SIZE, len(s))
+                        part = s[i:end]
+                        if end < len(s):
+                            cut = part.rfind(' ')
+                            if cut > CHUNK_SIZE * 0.6:
+                                part = part[:cut]
+                                end = i + cut
+                        chunks.append(part.strip())
+                        i = end
+                    buf = []
+                    buf_len = 0
+        if buf:
+            chunks.append(' '.join(buf).strip())
 
-        chunks.append(chunk.strip())
-        i = end
-
-    return chunks
+    flush_current()
+    return [c for c in chunks if c]
 
 
 def translate_chunk(client, chunk: str, idx: int, total: int) -> str:
