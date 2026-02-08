@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransPub — PDF to Translated Audiobook Website</title>
+    <meta name="description" content="An automated pipeline that transforms English PDF/EPUB books into fully translated Chinese audiobook websites.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,400&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --red: #d83c51;
+            --green: #1f855c;
+            --teal: #609dad;
+            --red-light: #fdf0f1;
+            --green-light: #eef7f3;
+            --teal-light: #eef5f7;
+            --red-soft: #f4c5cb;
+            --green-soft: #b8deca;
+            --teal-soft: #bdd8e0;
+            --bg: #ffffff;
+            --bg-warm: #fafafa;
+            --text: #1a1a2e;
+            --text-mid: #4a4a5a;
+            --text-muted: #8e8e9e;
+            --border: #e8e8ee;
+            --font-display: 'Fraunces', Georgia, serif;
+            --font-body: 'Outfit', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+            font-size: 16px;
+            font-weight: 400;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 0 36px;
+        }
+
+        /* --- Nav --- */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .logo span { color: var(--red); }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text); }
+
+        .github-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .github-link svg {
+            width: 17px;
+            height: 17px;
+            fill: currentColor;
+        }
+
+        /* --- Hero --- */
+        .hero {
+            padding: 88px 0 72px;
+            text-align: center;
+            position: relative;
+        }
+
+        /* Decorative dots */
+        .hero::before {
+            content: '';
+            position: absolute;
+            width: 180px;
+            height: 180px;
+            top: 20px;
+            right: -40px;
+            background: radial-gradient(circle, var(--teal-soft) 1.5px, transparent 1.5px);
+            background-size: 14px 14px;
+            opacity: 0.4;
+            border-radius: 50%;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            bottom: 30px;
+            left: -20px;
+            background: radial-gradient(circle, var(--red-soft) 1.5px, transparent 1.5px);
+            background-size: 14px 14px;
+            opacity: 0.35;
+            border-radius: 50%;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--green);
+            background: var(--green-light);
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 28px;
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2.2rem, 5vw, 3.4rem);
+            font-weight: 300;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
+            max-width: 680px;
+            margin: 0 auto 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 strong {
+            font-weight: 800;
+            color: var(--red);
+        }
+
+        .hero h1 .hl-teal {
+            font-weight: 800;
+            color: var(--teal);
+        }
+
+        .hero h1 .hl-green {
+            font-weight: 800;
+            color: var(--green);
+        }
+
+        .hero-desc {
+            font-size: 1.05rem;
+            font-weight: 300;
+            color: var(--text-mid);
+            max-width: 500px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn {
+            font-family: var(--font-body);
+            font-size: 0.85rem;
+            font-weight: 500;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.25s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--red);
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(216, 60, 81, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: #c4354a;
+            box-shadow: 0 4px 20px rgba(216, 60, 81, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-warm);
+            color: var(--text);
+            border: 1.5px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+
+        /* --- Pipeline --- */
+        .pipeline-section {
+            padding: 72px 0;
+            position: relative;
+        }
+
+        .section-label {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 500;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.65rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+            margin-bottom: 44px;
+        }
+
+        .pipeline {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Connecting line behind steps */
+        .pipeline::before {
+            content: '';
+            position: absolute;
+            top: 22px;
+            left: 40px;
+            right: 40px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--red-soft), var(--green-soft), var(--teal-soft));
+            z-index: 0;
+        }
+
+        .pipeline-step {
+            flex: 1;
+            text-align: center;
+            padding: 0 8px;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        .pipeline-step:nth-child(1) { animation-delay: 0.05s; }
+        .pipeline-step:nth-child(2) { animation-delay: 0.1s; }
+        .pipeline-step:nth-child(3) { animation-delay: 0.15s; }
+        .pipeline-step:nth-child(4) { animation-delay: 0.2s; }
+        .pipeline-step:nth-child(5) { animation-delay: 0.25s; }
+        .pipeline-step:nth-child(6) { animation-delay: 0.3s; }
+        .pipeline-step:nth-child(7) { animation-delay: 0.35s; }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.85) translateY(8px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .step-dot {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: #fff;
+            transition: transform 0.25s, box-shadow 0.25s;
+        }
+
+        .pipeline-step:hover .step-dot {
+            transform: scale(1.1);
+        }
+
+        .step-dot.c-red { background: var(--red); box-shadow: 0 3px 12px rgba(216, 60, 81, 0.2); }
+        .step-dot.c-green { background: var(--green); box-shadow: 0 3px 12px rgba(31, 133, 92, 0.2); }
+        .step-dot.c-teal { background: var(--teal); box-shadow: 0 3px 12px rgba(96, 157, 173, 0.2); }
+
+        .step-name {
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .step-desc {
+            font-size: 0.72rem;
+            font-weight: 300;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
+
+        /* --- Features --- */
+        .features-section {
+            padding: 72px 0;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            padding: 28px 24px;
+            border-radius: 12px;
+            transition: transform 0.25s, box-shadow 0.25s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+        }
+
+        .feature-card.bg-red { background: var(--red-light); }
+        .feature-card.bg-green { background: var(--green-light); }
+        .feature-card.bg-teal { background: var(--teal-light); }
+
+        .feature-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+        }
+
+        .feature-icon.ic-red { background: var(--red-soft); }
+        .feature-icon.ic-green { background: var(--green-soft); }
+        .feature-icon.ic-teal { background: var(--teal-soft); }
+
+        .feature-card h3 {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            letter-spacing: -0.01em;
+        }
+
+        .feature-card p {
+            font-size: 0.85rem;
+            font-weight: 300;
+            color: var(--text-mid);
+            line-height: 1.6;
+        }
+
+        /* --- Quick Start --- */
+        .quickstart-section {
+            padding: 72px 0;
+        }
+
+        .code-block {
+            background: var(--text);
+            color: #ccccd0;
+            padding: 28px 32px;
+            border-radius: 12px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 2;
+            overflow-x: auto;
+            margin-top: 28px;
+            position: relative;
+        }
+
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 12px 12px 0 0;
+            background: linear-gradient(90deg, var(--red), var(--green), var(--teal));
+        }
+
+        .code-block .comment { color: #5e5e6e; }
+        .code-block .cmd { color: #e8c47c; }
+        .code-block .flag { color: #7ecba1; }
+        .code-block .string { color: #e8959f; }
+
+        /* --- Footer --- */
+        footer {
+            padding: 40px 0;
+            border-top: 1.5px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        footer .footer-left {
+            font-size: 0.82rem;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        footer .footer-left a {
+            color: var(--text-mid);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer .footer-left a:hover { color: var(--red); }
+
+        footer .footer-right {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            letter-spacing: 0.04em;
+        }
+
+        /* --- Responsive --- */
+        @media (max-width: 768px) {
+            .hero::before, .hero::after { display: none; }
+
+            .pipeline {
+                flex-direction: column;
+                gap: 4px;
+                align-items: stretch;
+            }
+
+            .pipeline::before {
+                top: 0;
+                bottom: 0;
+                left: 21px;
+                right: auto;
+                width: 2px;
+                height: auto;
+                background: linear-gradient(180deg, var(--red-soft), var(--green-soft), var(--teal-soft));
+            }
+
+            .pipeline-step {
+                text-align: left;
+                padding: 10px 0 10px 60px;
+            }
+
+            .step-dot {
+                position: absolute;
+                left: 0;
+                top: 10px;
+                margin: 0;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .hero { padding: 56px 0 48px; }
+            .pipeline-section, .features-section, .quickstart-section { padding: 48px 0; }
+
+            footer {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="/" class="logo">Trans<span>Pub</span></a>
+            <div class="nav-links">
+                <a href="#how-it-works">How it works</a>
+                <a href="#get-started">Get started</a>
+                <a href="https://github.com/jinghan23/TransPub" target="_blank" class="github-link">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-badge">Open-source book pipeline</div>
+            <h1>Turn any book into a <strong>translated</strong> <span class="hl-teal">audiobook</span> <span class="hl-green">website</span></h1>
+            <p class="hero-desc">
+                An automated pipeline that transforms English PDF&thinsp;/&thinsp;EPUB books into
+                fully translated Chinese websites with AI-generated summaries and audio.
+            </p>
+            <div class="hero-actions">
+                <a href="https://github.com/jinghan23/TransPub" class="btn btn-primary" target="_blank">View on GitHub</a>
+                <a href="https://jinghan23.github.io/BTPP/" class="btn btn-secondary" target="_blank">Live Demo</a>
+            </div>
+        </section>
+
+        <section class="pipeline-section" id="how-it-works">
+            <div class="section-label">How it works</div>
+            <div class="section-title">Seven steps, one command</div>
+            <div class="pipeline">
+                <div class="pipeline-step">
+                    <div class="step-dot c-red">01</div>
+                    <div class="step-name">Extract</div>
+                    <div class="step-desc">Split PDF/EPUB into chapters via TOC</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-red">02</div>
+                    <div class="step-name">Clean</div>
+                    <div class="step-desc">Remove artifacts, fix formatting</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-green">03</div>
+                    <div class="step-name">Translate</div>
+                    <div class="step-desc">English to Chinese via GPT</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-green">04</div>
+                    <div class="step-name">Summarize</div>
+                    <div class="step-desc">AI chapter summaries</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-teal">05</div>
+                    <div class="step-name">Audio</div>
+                    <div class="step-desc">Text-to-speech via OpenAI TTS</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-teal">06</div>
+                    <div class="step-name">Build</div>
+                    <div class="step-desc">Generate static HTML site</div>
+                </div>
+                <div class="pipeline-step">
+                    <div class="step-dot c-teal">07</div>
+                    <div class="step-name">Publish</div>
+                    <div class="step-desc">Deploy to GitHub Pages</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="section-label">Features</div>
+            <div class="section-title">Built for real reading</div>
+            <div class="features-grid">
+                <div class="feature-card bg-red">
+                    <div class="feature-icon ic-red">&#9782;</div>
+                    <h3>PDF & EPUB</h3>
+                    <p>Handles both formats. Extracts chapters from TOC outlines with pattern-matching fallback.</p>
+                </div>
+                <div class="feature-card bg-green">
+                    <div class="feature-icon ic-green">&#8635;</div>
+                    <h3>Resumable</h3>
+                    <p>Every step is checkpointed. Interrupted? Just re-run. It picks up where it left off.</p>
+                </div>
+                <div class="feature-card bg-teal">
+                    <div class="feature-icon ic-teal">&#9654;</div>
+                    <h3>One command</h3>
+                    <p>Single shell script from raw book to deployed website. Batch processing for multiple books.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="quickstart-section" id="get-started">
+            <div class="section-label">Get started</div>
+            <div class="section-title">Three lines to your first book</div>
+            <div class="code-block">
+                <span class="comment"># Clone and setup</span><br>
+                <span class="cmd">git clone</span> <span class="string">https://github.com/jinghan23/TransPub</span><br>
+                <span class="cmd">pip install</span> <span class="flag">-r</span> requirements.txt<br>
+                <br>
+                <span class="comment"># Process a book</span><br>
+                <span class="cmd">./process_book.sh</span> <span class="string">"books/my-book.pdf"</span> <span class="string">"my-book"</span> <span class="string">"My Book Title"</span>
+            </div>
+        </section>
+
+        <footer>
+            <div class="footer-left">
+                Built by <a href="https://jinghan23.github.io" target="_blank">Jinghan Zhang</a>
+            </div>
+            <div class="footer-right">MIT License</div>
+        </footer>
+    </div>
+</body>
+</html>

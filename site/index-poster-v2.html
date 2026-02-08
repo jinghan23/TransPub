@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransPub — PDF to Translated Audiobook Website</title>
+    <meta name="description" content="An automated pipeline that transforms English PDF/EPUB books into fully translated Chinese audiobook websites.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;0,6..72,700;0,6..72,800;1,6..72,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --coral: #d83c51;
+            --crimson: #b9223a;
+            --green: #1f855c;
+            --dark-teal: #174a44;
+            --teal: #1990a7;
+            --sky: #58b2b9;
+            --gold: #fec103;
+            --salmon: #ea6444;
+            --blush: #f3bdc3;
+            --bg: #ffffff;
+            --text: #1a1a2e;
+            --text-secondary: #3d3d52;
+            --text-muted: #7a7a90;
+            --rule: #e0dfe6;
+            --font-serif: 'Newsreader', Georgia, serif;
+            --font-sans: 'DM Sans', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-sans);
+            color: var(--text);
+            background: var(--bg);
+            font-size: 16px;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .page {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 48px;
+        }
+
+        /* === NAV === */
+        nav {
+            padding: 28px 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 1.5px solid var(--rule);
+        }
+
+        .logo {
+            font-family: var(--font-serif);
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text);
+            text-decoration: none;
+            letter-spacing: -0.03em;
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .nav-right a {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+
+        .nav-right a:hover { color: var(--text); }
+
+        .gh-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .gh-link svg { width: 16px; height: 16px; fill: currentColor; }
+
+        /* === HERO === */
+        .hero {
+            padding: 80px 0 64px;
+        }
+
+        .hero-statement {
+            font-family: var(--font-serif);
+            font-size: clamp(2.6rem, 6vw, 4.2rem);
+            font-weight: 300;
+            line-height: 1.18;
+            letter-spacing: -0.035em;
+            max-width: 820px;
+            margin-bottom: 36px;
+        }
+
+        .hero-statement .w-bold {
+            font-weight: 800;
+        }
+
+        .hero-statement .c-coral { color: var(--coral); }
+        .hero-statement .c-green { color: var(--green); }
+        .hero-statement .c-teal { color: var(--teal); }
+        .hero-statement .c-gold { color: var(--gold); }
+
+        .hero-sub {
+            font-size: 1.05rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            max-width: 520px;
+            line-height: 1.7;
+            margin-bottom: 36px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-family: var(--font-sans);
+            font-size: 0.84rem;
+            font-weight: 600;
+            padding: 11px 26px;
+            border-radius: 6px;
+            text-decoration: none;
+            border: 1.5px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .btn-dark {
+            background: var(--text);
+            color: #fff;
+            border-color: var(--text);
+        }
+
+        .btn-dark:hover {
+            background: var(--dark-teal);
+            border-color: var(--dark-teal);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border-color: var(--rule);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--coral);
+            color: var(--coral);
+        }
+
+        /* === SECTION HEADERS (poster-style) === */
+        .poster-label {
+            font-family: var(--font-sans);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding-bottom: 10px;
+            margin-bottom: 32px;
+            border-bottom: 2.5px solid currentColor;
+            display: inline-block;
+        }
+
+        .poster-label.label-coral { color: var(--coral); border-color: var(--coral); }
+        .poster-label.label-green { color: var(--green); border-color: var(--green); }
+        .poster-label.label-teal { color: var(--teal); border-color: var(--teal); }
+
+        /* === PIPELINE === */
+        .pipeline-section {
+            padding: 56px 0 64px;
+            border-top: 1.5px solid var(--rule);
+        }
+
+        .pipeline-row {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-top: 8px;
+        }
+
+        .p-step {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .p-box {
+            width: 100%;
+            max-width: 104px;
+            padding: 14px 8px;
+            border-radius: 8px;
+            border: 2px solid;
+            text-align: center;
+            background: var(--bg);
+            position: relative;
+            z-index: 1;
+            transition: transform 0.2s;
+        }
+
+        .p-step:hover .p-box { transform: scale(1.05); }
+
+        .p-box.b-coral { border-color: var(--coral); }
+        .p-box.b-green { border-color: var(--green); }
+        .p-box.b-teal { border-color: var(--teal); }
+
+        .p-num {
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            font-weight: 500;
+            color: #fff;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            border-radius: 50%;
+            text-align: center;
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .p-num.n-coral { background: var(--coral); }
+        .p-num.n-green { background: var(--green); }
+        .p-num.n-teal { background: var(--teal); }
+
+        .p-name {
+            font-size: 0.76rem;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .p-desc {
+            font-size: 0.66rem;
+            color: var(--text-muted);
+            line-height: 1.35;
+        }
+
+        .p-arrow {
+            flex: 0 0 auto;
+            width: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--rule);
+            font-size: 1rem;
+            z-index: 0;
+        }
+
+        .p-arrow svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Phase labels below */
+        .phase-labels {
+            display: flex;
+            margin-top: 16px;
+            gap: 0;
+        }
+
+        .phase-label {
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            text-align: center;
+            padding: 6px 0;
+            border-top: 3px solid;
+        }
+
+        .phase-label.ph-coral {
+            flex: 2;
+            color: var(--coral);
+            border-color: var(--coral);
+        }
+
+        .phase-label.ph-green {
+            flex: 2.3;
+            color: var(--green);
+            border-color: var(--green);
+        }
+
+        .phase-label.ph-teal {
+            flex: 3;
+            color: var(--teal);
+            border-color: var(--teal);
+        }
+
+        /* === FEATURES === */
+        .features-section {
+            padding: 56px 0 64px;
+            border-top: 1.5px solid var(--rule);
+        }
+
+        .features-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 28px;
+        }
+
+        .f-item {
+            position: relative;
+            padding-left: 18px;
+        }
+
+        .f-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 4px;
+            width: 4px;
+            height: calc(100% - 8px);
+            border-radius: 2px;
+        }
+
+        .f-item.fl-coral::before { background: var(--coral); }
+        .f-item.fl-green::before { background: var(--green); }
+        .f-item.fl-teal::before { background: var(--teal); }
+
+        .f-item h3 {
+            font-family: var(--font-serif);
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: -0.01em;
+        }
+
+        .f-item p {
+            font-size: 0.84rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* === QUICKSTART === */
+        .quickstart-section {
+            padding: 56px 0 64px;
+            border-top: 1.5px solid var(--rule);
+        }
+
+        .code-block {
+            background: #1e1e32;
+            color: #c8c8d4;
+            padding: 24px 28px;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 2;
+            overflow-x: auto;
+            margin-top: 24px;
+            border-left: 4px solid var(--green);
+        }
+
+        .code-block .comment { color: #555568; }
+        .code-block .cmd { color: var(--gold); }
+        .code-block .flag { color: var(--sky); }
+        .code-block .string { color: var(--blush); }
+
+        /* === FOOTER === */
+        footer {
+            padding: 32px 0;
+            border-top: 1.5px solid var(--rule);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer a:hover { color: var(--coral); }
+
+        footer .footer-r {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.04em;
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .page { padding: 0 24px; }
+            .hero { padding: 48px 0 40px; }
+            .hero-statement { font-size: 2rem; }
+
+            .pipeline-row {
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+            }
+
+            .p-step { flex-direction: row; gap: 12px; align-items: center; }
+
+            .p-box {
+                max-width: none;
+                width: auto;
+                flex: 1;
+                text-align: left;
+                padding: 12px 14px 12px 40px;
+            }
+
+            .p-num {
+                left: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+            }
+
+            .p-arrow {
+                display: none;
+            }
+
+            .phase-labels { display: none; }
+
+            .features-list { grid-template-columns: 1fr; gap: 20px; }
+
+            .pipeline-section, .features-section, .quickstart-section {
+                padding: 40px 0 48px;
+            }
+
+            footer {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <nav>
+            <a href="/" class="logo">TransPub</a>
+            <div class="nav-right">
+                <a href="#pipeline">Pipeline</a>
+                <a href="#quickstart">Quickstart</a>
+                <a href="https://github.com/jinghan23/TransPub" target="_blank" class="gh-link">
+                    <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <h1 class="hero-statement">
+                English books can be
+                <span class="w-bold c-coral">translated</span>,
+                <span class="w-bold c-green">summarized</span>,
+                and <span class="w-bold c-teal">published</span>
+                as audiobook websites.
+            </h1>
+            <p class="hero-sub">
+                TransPub is an open-source pipeline that transforms PDF&thinsp;/&thinsp;EPUB
+                books into fully translated Chinese audiobook websites with
+                AI&#8209;generated summaries&nbsp;&mdash;&nbsp;deployed to GitHub&nbsp;Pages.
+            </p>
+            <div class="hero-buttons">
+                <a href="https://github.com/jinghan23/TransPub" class="btn btn-dark" target="_blank">View on GitHub</a>
+                <a href="https://jinghan23.github.io/BTPP/" class="btn btn-outline" target="_blank">Live Demo</a>
+            </div>
+        </section>
+
+        <section class="pipeline-section" id="pipeline">
+            <div class="poster-label label-coral">Pipeline</div>
+
+            <div class="pipeline-row">
+                <div class="p-step">
+                    <div class="p-box b-coral">
+                        <div class="p-num n-coral">1</div>
+                        <div class="p-name">Extract</div>
+                        <div class="p-desc">PDF/EPUB to chapters</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-coral">
+                        <div class="p-num n-coral">2</div>
+                        <div class="p-name">Clean</div>
+                        <div class="p-desc">Fix artifacts &amp; format</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-green">
+                        <div class="p-num n-green">3</div>
+                        <div class="p-name">Translate</div>
+                        <div class="p-desc">EN &rarr; ZH via GPT</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-green">
+                        <div class="p-num n-green">4</div>
+                        <div class="p-name">Summarize</div>
+                        <div class="p-desc">Chapter summaries</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-teal">
+                        <div class="p-num n-teal">5</div>
+                        <div class="p-name">Audio</div>
+                        <div class="p-desc">OpenAI TTS</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-teal">
+                        <div class="p-num n-teal">6</div>
+                        <div class="p-name">Build</div>
+                        <div class="p-desc">Static HTML</div>
+                    </div>
+                </div>
+                <div class="p-arrow"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10h12M12 6l4 4-4 4"/></svg></div>
+                <div class="p-step">
+                    <div class="p-box b-teal">
+                        <div class="p-num n-teal">7</div>
+                        <div class="p-name">Publish</div>
+                        <div class="p-desc">GitHub Pages</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="phase-labels">
+                <div class="phase-label ph-coral">Preprocessing</div>
+                <div class="phase-label ph-green">AI Processing</div>
+                <div class="phase-label ph-teal">Output &amp; Deploy</div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="poster-label label-green">Features</div>
+            <div class="features-list">
+                <div class="f-item fl-coral">
+                    <h3>PDF &amp; EPUB support</h3>
+                    <p>Extracts chapters from TOC outlines with intelligent pattern-matching fallback for books without structured metadata.</p>
+                </div>
+                <div class="f-item fl-green">
+                    <h3>Fully resumable</h3>
+                    <p>Every step is checkpointed to disk. Process interrupted? Re-run the same command and it picks up exactly where it stopped.</p>
+                </div>
+                <div class="f-item fl-teal">
+                    <h3>Single command</h3>
+                    <p>One shell script takes a raw book file all the way to a deployed website. Batch mode processes entire libraries.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="quickstart-section" id="quickstart">
+            <div class="poster-label label-teal">Quickstart</div>
+            <div class="code-block">
+                <span class="comment"># Clone and install</span><br>
+                <span class="cmd">git clone</span> <span class="string">https://github.com/jinghan23/TransPub</span><br>
+                <span class="cmd">pip install</span> <span class="flag">-r</span> requirements.txt<br>
+                <br>
+                <span class="comment"># Process a book (extract → translate → summarize → audio → website)</span><br>
+                <span class="cmd">./process_book.sh</span> <span class="string">"books/my-book.pdf"</span> <span class="string">"my-book"</span> <span class="string">"My Book Title"</span>
+            </div>
+        </section>
+
+        <footer>
+            <div>Built by <a href="https://jinghan23.github.io" target="_blank">Jinghan Zhang</a></div>
+            <div class="footer-r">MIT License</div>
+        </footer>
+    </div>
+</body>
+</html>
