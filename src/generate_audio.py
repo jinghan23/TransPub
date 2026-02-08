@@ -190,11 +190,32 @@ def generate_audio_for_chapter(client, rate_limiter, chapter_num: int, text: str
     return success_count == len(chunks)
 
 
+def load_chapters_meta(base_dir: Path) -> dict:
+    """Load chapter metadata to determine chapter types."""
+    import json
+
+    # Try to find chapters_meta.json in the chapters directory
+    # The input_dir is translations/, so chapters/ is a sibling
+    chapters_dir = base_dir.parent / 'chapters'
+    meta_file = chapters_dir / 'chapters_meta.json'
+
+    if meta_file.exists():
+        with open(meta_file, 'r', encoding='utf-8') as f:
+            meta_list = json.load(f)
+        # Convert to dict keyed by chapter number
+        return {m['number']: m for m in meta_list}
+
+    return {}
+
+
 def generate_audio(input_dir: str, output_dir: str, chapters: str = None):
-    """Generate audio for chapters"""
+    """Generate audio for chapters (skips non-main-content chapters)"""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load chapter metadata for type filtering
+    chapters_meta = load_chapters_meta(input_dir)
 
     # Initialize
     print(f"TTS Model: {TTS_MODEL}, Voice: {TTS_VOICE}, QPM: {TTS_QPM}\n")
@@ -214,6 +235,27 @@ def generate_audio(input_dir: str, output_dir: str, chapters: str = None):
 
         trans_files = [f for f in trans_files
                       if int(f.stem.split('_')[1]) in chapter_nums]
+
+    # Filter out non-main-content chapters for audio
+    if chapters_meta:
+        main_content_files = []
+        skipped_files = []
+        for f in trans_files:
+            chapter_num = int(f.stem.split('_')[1])
+            meta = chapters_meta.get(chapter_num, {})
+            chapter_type = meta.get('type', 'main_content')
+            if chapter_type == 'main_content':
+                main_content_files.append(f)
+            else:
+                skipped_files.append((f, meta.get('title', ''), chapter_type))
+
+        if skipped_files:
+            print(f"Skipping {len(skipped_files)} non-main-content chapters:")
+            for f, title, ctype in skipped_files:
+                print(f"  - Chapter {f.stem.split('_')[1]}: '{title}' [{ctype}]")
+            print()
+
+        trans_files = main_content_files
 
     print(f"Processing {len(trans_files)} chapters\n")
 

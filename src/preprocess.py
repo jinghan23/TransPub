@@ -5,6 +5,7 @@ This step runs BEFORE translation to ensure clean source text.
 """
 
 import argparse
+import logging
 import time
 from pathlib import Path
 
@@ -12,6 +13,32 @@ from config import (
     get_openai_client, TRANSLATION_MODEL, TEMPERATURE, MAX_RETRIES,
     PREPROCESS_CHUNK_SIZE,
 )
+
+try:
+    from .utils import check_truncation
+except ImportError:
+    from utils import check_truncation
+
+logger = logging.getLogger(__name__)
+
+
+def _strip_preprocess_prefix(text: str) -> str:
+    """Remove common LLM echo prefixes from preprocess output."""
+    import re
+    text = text.lstrip()
+    # Remove various echo patterns - comprehensive list
+    patterns = [
+        r'^Cleaned and markdown-formatted text(?:\s+for this part)?:\s*',
+        r'^Cleaned text:\s*',
+        r'^Cleaned version:\s*',
+        r'^Here\'?s?\s+(?:the\s+)?cleaned text:\s*',
+        r'^Output:\s*',
+        r'^Result:\s*',
+        r'^Formatted text:\s*',
+    ]
+    for pattern in patterns:
+        text = re.sub(pattern, '', text, count=1, flags=re.IGNORECASE)
+    return text.strip()
 
 
 def _split_preprocess_chunks(text: str, max_chars: int) -> list:
@@ -48,13 +75,18 @@ def _split_preprocess_chunks(text: str, max_chars: int) -> list:
                     chunk = p[i:end]
                     # try to cut on sentence boundary within this oversized paragraph
                     if end < len(p):
-                        last_break = max(
+                        # Prefer sentence boundaries over arbitrary spaces
+                        sentence_break = max(
                             chunk.rfind(". "),
                             chunk.rfind("! "),
                             chunk.rfind("? "),
                             chunk.rfind(".\n"),
-                            chunk.rfind(" ")
                         )
+                        if sentence_break > max_chars * 0.5:
+                            last_break = sentence_break
+                        else:
+                            # Fallback to space only if no sentence boundary found
+                            last_break = chunk.rfind(" ")
                         if last_break > max_chars * 0.5:
                             chunk = chunk[:last_break + 1]
                             end = i + len(chunk)
@@ -72,47 +104,63 @@ def _split_preprocess_chunks(text: str, max_chars: int) -> list:
 
 
 def _preprocess_chunk(client, chunk: str, chapter_num: int, idx: int, total: int) -> str:
-    """Clean PDF artifacts and add Markdown formatting for a single chunk."""
-    prompt = f"""You are a text preprocessing expert. Clean up this English book chapter PART and add Markdown formatting.
+    """Clean text artifacts and add Markdown formatting for a single chunk."""
+    prompt = f"""Clean up this English book chapter text and add Markdown formatting.
 
-This is part {idx} of {total} for Chapter {chapter_num}. Only process the given text span; do not assume context outside it.
+This is part {idx} of {total} for Chapter {chapter_num}.
 
-TASK 1 - FIX PDF ARTIFACTS (within this part only):
+TASKS:
 1. Merge paragraphs split by page breaks when clearly the same sentence/topic
 2. Fix hyphenated words split across lines (e.g., "meno-\\npause" → "menopause")
 3. Merge sentences incorrectly split across lines
 4. Preserve intentional paragraph breaks
-
-TASK 2 - ADD MARKDOWN FORMATTING:
-1. Convert section headings to `## Heading` when already present
-2. Convert obvious subtitles/taglines to `*italic*` when clearly intended
-3. Keep body text unchanged except for artifact fixes
-4. DO NOT add the chapter title H1 here (handled elsewhere)
+5. Remove isolated bare footnote digits (e.g., "Julie,1 a" → "Julie, a") but KEEP bracketed footnotes like [1], [2], etc.
+6. Convert section headings to `## Heading` format
+7. Convert obvious subtitles to `*italic*` format
 
 RULES:
 - DO NOT change wording or meaning
 - DO NOT add or remove content
-- Only fix paragraph/sentence breaks and add minimal Markdown markers
+- PRESERVE all [N] footnote references (e.g., [1], [2], [37]) exactly as they appear
+- DO NOT include any preamble, explanation, or labels in your response
+- Output ONLY the cleaned text, nothing else
 
-Input text (with PDF artifacts):
+Input:
 
-{chunk}
+{chunk}"""
 
-Cleaned and markdown-formatted text for this part:"""
+    max_tokens = 16000
+    max_tokens_cap = 32000
 
     for attempt in range(MAX_RETRIES):
         try:
             response = client.chat.completions.create(
                 model=TRANSLATION_MODEL,
                 messages=[
-                    {"role": "system", "content": "You clean PDF-extracted text without rewriting, adding only minimal Markdown formatting."},
+                    {"role": "system", "content": "You clean extracted text without rewriting, adding only minimal Markdown formatting."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=TEMPERATURE,
-                max_tokens=16000
+                max_tokens=max_tokens
             )
 
-            return response.choices[0].message.content.strip()
+            if check_truncation(response, chunk, "preprocess"):
+                if max_tokens < max_tokens_cap:
+                    max_tokens = min(max_tokens + 4000, max_tokens_cap)
+                    logger.warning(
+                        "Part %d: truncation detected, retrying with max_tokens=%d",
+                        idx, max_tokens,
+                    )
+                    continue
+                else:
+                    logger.warning(
+                        "Part %d: truncation persists at max_tokens=%d, using current output",
+                        idx, max_tokens,
+                    )
+
+            result = response.choices[0].message.content.strip()
+            result = _strip_preprocess_prefix(result)
+            return result
         except Exception as e:
             print(f"    Part {idx}: attempt failed: {e}")
             if attempt < MAX_RETRIES - 1:

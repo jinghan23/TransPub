@@ -5,12 +5,42 @@ Preserves Markdown formatting from preprocessing step.
 """
 
 import argparse
+import logging
+import re
 import time
 from pathlib import Path
 
 from config import (
     get_openai_client, TRANSLATION_MODEL, TEMPERATURE, MAX_RETRIES, CHUNK_SIZE
 )
+
+try:
+    from .utils import check_truncation
+except ImportError:
+    from utils import check_truncation
+
+logger = logging.getLogger(__name__)
+
+
+def _strip_translation_prefix(text: str) -> str:
+    """Remove common LLM echo prefixes from the translation output.
+
+    Models sometimes repeat the prompt instruction, e.g.:
+      "Chinese translation:" / "Chinese Translation:" / "中文翻译：" etc.
+    """
+    # Strip leading whitespace first
+    text = text.lstrip()
+    # English variants (case-insensitive)
+    text = re.sub(
+        r'^(?:Chinese\s+translation|Translation|Here\'?s?\s+the\s+translation)\s*[:：]\s*',
+        '', text, count=1, flags=re.IGNORECASE,
+    )
+    # Chinese variants - more comprehensive patterns
+    text = re.sub(
+        r'^(?:以下是|这是)?(?:简体)?(?:中文)?(?:翻译|译文)(?:如下)?[:：]?\s*',
+        '', text, count=1,
+    )
+    return text.strip()
 
 
 def _split_sentences(text: str) -> list:
@@ -132,23 +162,23 @@ def split_into_chunks(text: str) -> list:
 
 
 def translate_chunk(client, chunk: str, idx: int, total: int) -> str:
-    """Translate a single chunk"""
-    prompt = f"""You are a professional translator working on a book translation project.
-
-Task: Translate the following English text to Chinese (Simplified).
+    """Translate a single chunk with truncation detection and prefix cleanup."""
+    prompt = f"""Translate this English text to Chinese (Simplified).
 
 Requirements:
-1. **Accuracy**: Stay faithful to the original meaning and tone
-2. **Fluency**: Use natural, idiomatic Chinese
-3. **Completeness**: Translate ALL text, do not summarize or skip content
-4. **Preserve Markdown formatting**: Keep all # ## * symbols exactly as they are
-5. Only translate the text content, do NOT translate or modify Markdown symbols
+1. Stay faithful to the original meaning and tone
+2. Use natural, idiomatic Chinese
+3. Translate ALL text completely, do not summarize or skip
+4. Keep all Markdown symbols (# ## *) exactly as they are
 
-Text to translate (Part {idx} of {total}):
+IMPORTANT: Output ONLY the translated text. Do NOT include any labels, preamble, or "Chinese translation:" prefix.
 
-{chunk}
+Text (Part {idx}/{total}):
 
-Chinese translation:"""
+{chunk}"""
+
+    max_tokens = 16000
+    max_tokens_cap = 32000
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -159,10 +189,26 @@ Chinese translation:"""
                     {"role": "user", "content": prompt}
                 ],
                 temperature=TEMPERATURE,
-                max_tokens=16000
+                max_tokens=max_tokens
             )
 
-            return response.choices[0].message.content.strip()
+            if check_truncation(response, chunk, "translate"):
+                if max_tokens < max_tokens_cap:
+                    max_tokens = min(max_tokens + 4000, max_tokens_cap)
+                    logger.warning(
+                        "Chunk %d: truncation detected, retrying with max_tokens=%d",
+                        idx, max_tokens,
+                    )
+                    continue
+                else:
+                    logger.warning(
+                        "Chunk %d: truncation persists at max_tokens=%d, using current output",
+                        idx, max_tokens,
+                    )
+
+            result = response.choices[0].message.content.strip()
+            result = _strip_translation_prefix(result)
+            return result
 
         except Exception as e:
             print(f"      Attempt {attempt + 1} failed: {e}")

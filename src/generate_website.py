@@ -121,19 +121,6 @@ def generate_chapter_html(chapter_num: int, trans_file: Path, summary_dir: Path,
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>第 {chapter_num} 章: {title} - {book_title}</title>
     <link rel="stylesheet" href="../../../css/style.css">
-    <style>
-        .chapter-summary-box {{
-            background: #f0f8ff;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #3498db;
-        }}
-        .chapter-summary-box h3 {{ margin-top: 0; color: #2c3e50; }}
-        .chapter-summary-box p {{ line-height: 1.8; white-space: pre-wrap; }}
-        .audio-player {{ margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; }}
-        .audio-player audio {{ width: 100%; }}
-    </style>
 </head>
 <body>
     <div class="container chapter-detail">
@@ -150,7 +137,7 @@ def generate_chapter_html(chapter_num: int, trans_file: Path, summary_dir: Path,
             {content_html}
         </div>
 
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+        <div class="chapter-bottom-nav">
             <a href="../index.html" class="back-link">&larr; 返回目录</a>
         </div>
     </div>
@@ -282,26 +269,12 @@ def generate_books_index(docs_base: str):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>书籍列表 - TransPub</title>
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }}
-        .container {{ max-width: 900px; margin: 0 auto; padding: 20px; }}
-        header {{ text-align: center; margin-bottom: 40px; padding: 40px 0; }}
-        header h1 {{ margin-bottom: 10px; color: #2c3e50; }}
-        .subtitle {{ color: #666; }}
-        .books-grid {{ display: grid; gap: 20px; }}
-        .book-card {{ background: white; padding: 25px; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; border-left: 4px solid #3498db; }}
-        .book-card:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }}
-        .book-title {{ font-size: 1.5em; margin-bottom: 15px; color: #2c3e50; font-weight: 500; }}
-        .book-meta {{ color: #666; font-size: 0.9em; display: flex; gap: 20px; flex-wrap: wrap; }}
-        .audio-badge {{ color: #e74c3c; font-weight: 500; }}
-        footer {{ text-align: center; margin-top: 60px; padding: 20px; color: #999; border-top: 1px solid #ddd; }}
-        footer a {{ color: #3498db; text-decoration: none; }}
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📚 我的书籍收藏</h1>
+            <h1>我的书籍收藏</h1>
             <p class="subtitle">由 TransPub 生成 | 共 {len(books)} 本书籍</p>
         </header>
 
@@ -367,38 +340,12 @@ def generate_website(book_slug: str, book_title: str, output_base: str, docs_bas
     global_css_dir = Path(docs_base).parent / 'css'
     global_css_file = global_css_dir / 'style.css'
 
+    global_css_dir.mkdir(parents=True, exist_ok=True)
     if not global_css_file.exists():
-        print("\nCreating global CSS file...")
-        global_css_dir.mkdir(parents=True, exist_ok=True)
-
-        css_content = '''
-/* Book Pipeline - Chapter Styles */
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
-.container { max-width: 900px; margin: 0 auto; padding: 20px; }
-header { text-align: center; margin-bottom: 40px; }
-header h1 { margin-bottom: 10px; }
-.subtitle { color: #666; }
-.chapters-grid { display: grid; gap: 20px; }
-.chapter-card { background: white; padding: 20px; border-radius: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-.chapter-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.chapter-number { color: #3498db; font-weight: bold; margin-bottom: 5px; }
-.chapter-title { font-size: 1.2em; margin-bottom: 10px; }
-.chapter-summary { color: #666; font-size: 0.9em; margin-bottom: 10px; }
-.chapter-meta { color: #999; font-size: 0.85em; display: flex; gap: 15px; }
-.audio-badge { color: #3498db; }
-.back-link { color: #3498db; text-decoration: none; display: inline-block; margin-bottom: 20px; }
-.chapter-detail { background: white; padding: 30px; border-radius: 8px; }
-.chapter-content { margin-top: 30px; }
-.chapter-content h1 { font-size: 1.8em; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-.chapter-content h2 { font-size: 1.4em; color: #2c3e50; margin-top: 30px; }
-.chapter-content p { margin: 15px 0; text-align: justify; }
-footer { text-align: center; margin-top: 40px; color: #999; }
-footer a { color: #3498db; }
-'''
-        global_css_file.write_text(css_content, encoding='utf-8')
-        print(f"  Created {global_css_file}")
+        print("\nNote: Global CSS file not found at {global_css_file}")
+        print("  Copy docs/css/style.css from the TransPub repository.")
     else:
-        print(f"\nGlobal CSS already exists: {global_css_file}")
+        print(f"\nGlobal CSS: {global_css_file}")
 
     print(f"\n{'='*60}")
     print(f"Website generated successfully!")

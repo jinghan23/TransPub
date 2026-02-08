@@ -28,7 +28,7 @@ TTS_QPM = int(os.getenv('TTS_QPM', 5))
 # Processing Settings
 TEMPERATURE = float(os.getenv('TEMPERATURE', 0.7))
 MAX_RETRIES = int(os.getenv('MAX_RETRIES', 3))
-CHUNK_SIZE = 3000  # Characters per translation chunk
+CHUNK_SIZE = 8000  # Characters per translation chunk (~2k tokens English)
 # Preprocessing chunk size (characters). Use larger chunks, split on blank lines
 # Can be overridden via env PREPROCESS_CHUNK_SIZE
 PREPROCESS_CHUNK_SIZE = int(os.getenv('PREPROCESS_CHUNK_SIZE', 8000))
